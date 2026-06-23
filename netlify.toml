@@ -1,0 +1,29 @@
+[build]
+  # Base directory for the build
+  base = "/"
+  
+  # Publish directory (where the static files are)
+  publish = "/"
+  
+  # Build command (not needed for static sites, but can run scripts if needed)
+  command = ""
+
+[context.production]
+  # Production environment settings
+  command = ""
+
+# Redirect rules (optional - example for SPA routing)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers configuration
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
