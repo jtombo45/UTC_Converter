@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reference Clock — UTC / Eastern / Arizona</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0D12;
+    --bg2:#0E121A;
+    --surface:#141A24;
+    --surface-2:#1A222F;
+    --line:#232C3A;
+    --line-soft:#1B2230;
+    --text:#E7EEF7;
+    --muted:#8595A8;
+    --faint:#5C6B7E;
+
+    --utc:#6FE9D8;     /* VFD teal — the reference */
+    --et:#F4B860;      /* amber — Eastern */
+    --az:#F2845C;      /* desert coral — Arizona / your pick */
+
+    --radius:18px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 600px at 78% -8%, rgba(111,233,216,.07), transparent 60%),
+      radial-gradient(900px 500px at 10% 110%, rgba(242,132,92,.06), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Space Grotesk", system-ui, -apple-system, sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    padding:clamp(18px,4vw,44px);
+  }
+
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  /* ---- Header ---- */
+  header{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:20px;flex-wrap:wrap;margin-bottom:clamp(20px,3vw,32px);
+  }
+  .brand .eyebrow{
+    font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--faint);font-weight:600;margin-bottom:8px;
+  }
+  .brand h1{
+    margin:0;font-size:clamp(1.5rem,3.4vw,2.2rem);font-weight:600;
+    letter-spacing:-.01em;line-height:1.05;
+  }
+  .brand h1 .dot{color:var(--utc);}
+
+  .controls{display:flex;align-items:center;gap:8px;}
+  .seg{
+    display:inline-flex;background:var(--surface);border:1px solid var(--line);
+    border-radius:999px;padding:4px;gap:2px;
+  }
+  .seg button{
+    appearance:none;border:0;background:transparent;color:var(--muted);
+    font-family:inherit;font-weight:600;font-size:.82rem;letter-spacing:.02em;
+    padding:7px 15px;border-radius:999px;cursor:pointer;transition:color .18s, background .18s;
+  }
+  .seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);}
+  .seg button:focus-visible{outline:2px solid var(--utc);outline-offset:2px;}
+
+  /* ---- Tabs ---- */
+  .tabs{display:inline-flex;gap:4px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:5px;margin-bottom:clamp(18px,3vw,26px);}
+  .tab-btn{
+    appearance:none;border:0;background:transparent;color:var(--muted);
+    font-family:inherit;font-weight:600;font-size:.9rem;letter-spacing:.01em;
+    padding:9px 18px;border-radius:8px;cursor:pointer;transition:color .18s, background .18s;
+  }
+  .tab-btn[aria-selected="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line);}
+  .tab-btn:hover[aria-selected="false"]{color:var(--text);}
+  .tab-btn:focus-visible{outline:2px solid var(--utc);outline-offset:2px;}
+  .tab[hidden]{display:none;}
+
+  /* ---- Convert ---- */
+  .cv-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:10px;}
+  .now-btn{
+    display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    font-family:inherit;font-size:.82rem;font-weight:600;color:var(--utc);
+    background:rgba(111,233,216,.08);border:1px solid rgba(111,233,216,.35);
+    border-radius:999px;padding:8px 15px;transition:background .18s, border-color .18s, box-shadow .18s;
+  }
+  .now-btn:hover{background:rgba(111,233,216,.15);border-color:rgba(111,233,216,.6);box-shadow:0 0 0 3px rgba(111,233,216,.10);}
+  .now-btn:focus-visible{outline:2px solid var(--utc);outline-offset:2px;}
+  .now-btn .ico{width:16px;height:16px;flex:none;}
+  .now-btn .now-txt{letter-spacing:.02em;}
+  .now-btn .now-txt b{font-family:"JetBrains Mono",monospace;font-weight:500;font-variant-numeric:tabular-nums;}
+  .cv-msg{margin:0 0 18px;font-size:.78rem;color:var(--muted);letter-spacing:.01em;}
+  .cv-msg code{font-family:"JetBrains Mono",monospace;color:var(--utc);font-size:.92em;}
+  .cv-msg.err{color:#F2845C;}
+  .cv-msg.err code{color:#F2845C;}
+
+  /* editable per-zone field */
+  .cv-field{
+    width:100%;font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:clamp(1.05rem,2.6vw,1.4rem);font-weight:500;
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;
+    padding:13px 14px;margin:6px 0 14px;letter-spacing:.01em;
+  }
+  .cv-field.utc{color:var(--utc);text-shadow:0 0 14px rgba(111,233,216,.22);}
+  .cv-field.et{color:var(--et);text-shadow:0 0 14px rgba(244,184,96,.22);}
+  .cv-field.az{color:var(--az);text-shadow:0 0 14px rgba(242,132,92,.22);}
+  .cv-field::placeholder{color:var(--faint);text-shadow:none;}
+  .cv-field.utc:focus-visible{outline:2px solid var(--utc);outline-offset:2px;border-color:rgba(111,233,216,.5);}
+  .cv-field.et:focus-visible{outline:2px solid var(--et);outline-offset:2px;border-color:rgba(244,184,96,.5);}
+  .cv-field.az:focus-visible{outline:2px solid var(--az);outline-offset:2px;border-color:rgba(242,132,92,.5);}
+  .cv-field.invalid{color:#F2845C;border-color:rgba(242,132,92,.6);text-shadow:none;}
+
+  /* convert: 3-up grid + UTC card accent */
+  .grid3{grid-template-columns:1fr 1fr 1fr;}
+  @media(max-width:860px){.grid3{grid-template-columns:1fr 1fr;}}
+  @media(max-width:560px){.grid3{grid-template-columns:1fr;}}
+  .card.utc::before{background:linear-gradient(90deg,var(--utc),transparent 70%);}
+  .card.utc .pip{background:var(--utc);box-shadow:0 0 14px var(--utc);}
+
+  /* ---- UTC reference bar ---- */
+  .reference{
+    position:relative;overflow:hidden;
+    background:linear-gradient(180deg, var(--surface) 0%, var(--bg2) 100%);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:clamp(22px,3.4vw,34px) clamp(22px,3.4vw,38px) 0;
+    margin-bottom:18px;
+  }
+  .ref-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;}
+  .zone-tag{display:flex;align-items:center;gap:12px;}
+  .pip{width:10px;height:10px;border-radius:50%;background:var(--utc);box-shadow:0 0 14px var(--utc);}
+  .zone-name{font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;font-weight:600;color:var(--muted);}
+  .zone-sub{font-size:.78rem;color:var(--faint);margin-top:3px;letter-spacing:.04em;}
+
+  .readout{
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric:tabular-nums;font-weight:500;line-height:1;
+    letter-spacing:.01em;display:flex;align-items:baseline;gap:.12em;
+  }
+  .reference .readout{
+    font-size:clamp(3.1rem,11vw,6.4rem);color:var(--utc);
+    text-shadow:0 0 26px rgba(111,233,216,.32);margin:14px 0 4px;
+  }
+  .readout .sep{opacity:.45;animation:blink 2s steps(1) infinite;}
+  .readout .ampm{font-size:.32em;font-weight:600;color:var(--muted);letter-spacing:.1em;align-self:center;margin-left:.3em;text-shadow:none;}
+  @keyframes blink{50%{opacity:.12;}}
+
+  .ref-meta{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;padding-bottom:22px;}
+  .datestr{color:var(--text);font-size:.98rem;font-weight:500;letter-spacing:.01em;}
+  .chip{
+    font-family:"JetBrains Mono", monospace;font-size:.74rem;font-weight:500;
+    padding:4px 9px;border-radius:6px;border:1px solid var(--line);
+    background:rgba(255,255,255,.02);color:var(--muted);letter-spacing:.02em;
+  }
+  .chip.lead{color:var(--utc);border-color:rgba(111,233,216,.3);background:rgba(111,233,216,.06);}
+
+  /* progress rail = fraction of the current minute elapsed */
+  .rail{height:3px;background:var(--line-soft);position:relative;margin:0 -38px;}
+  .rail__fill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,transparent,var(--utc));box-shadow:0 0 10px var(--utc);}
+
+  /* ---- Two derived cards ---- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
+  @media(max-width:720px){.grid{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:clamp(20px,2.6vw,26px);position:relative;overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;opacity:.7;}
+  .card.et::before{background:linear-gradient(90deg,var(--et),transparent 70%);}
+  .card.az::before{background:linear-gradient(90deg,var(--az),transparent 70%);}
+
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;}
+  .card.et .pip{background:var(--et);box-shadow:0 0 14px var(--et);}
+  .card.az .pip{background:var(--az);box-shadow:0 0 14px var(--az);}
+
+  .daynight{display:flex;align-items:center;gap:7px;font-size:.74rem;color:var(--faint);letter-spacing:.04em;}
+  .orb{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);}
+  .orb.day{background:radial-gradient(circle at 35% 35%, #FFE7B0, #F4B860);border-color:transparent;box-shadow:0 0 10px rgba(244,184,96,.4);}
+  .orb.night{background:radial-gradient(circle at 65% 35%, #2A3550, #121826);}
+
+  .card .readout{font-size:clamp(2.6rem,7vw,3.7rem);margin:6px 0 12px;}
+  .card.et .readout{color:var(--et);text-shadow:0 0 22px rgba(244,184,96,.28);}
+  .card.az .readout{color:var(--az);text-shadow:0 0 22px rgba(242,132,92,.28);}
+
+  .card-foot{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;}
+  .card.et .chip.lead{color:var(--et);border-color:rgba(244,184,96,.3);background:rgba(244,184,96,.06);}
+  .card.az .chip.lead{color:var(--az);border-color:rgba(242,132,92,.3);background:rgba(242,132,92,.06);}
+
+  /* selectable zone — styled as an obvious tappable control */
+  .picker{
+    position:relative;display:inline-flex;align-items:center;gap:7px;
+    background:rgba(242,132,92,.10);
+    border:1px solid rgba(242,132,92,.42);
+    border-radius:999px;padding:3px 30px 3px 11px;
+    transition:background .18s, border-color .18s, box-shadow .18s;
+  }
+  .picker:hover{background:rgba(242,132,92,.17);border-color:rgba(242,132,92,.7);box-shadow:0 0 0 3px rgba(242,132,92,.10);}
+  .picker:focus-within{border-color:var(--az);box-shadow:0 0 0 3px rgba(242,132,92,.20);}
+  .picker .swap{color:var(--az);font-size:.82rem;line-height:1;pointer-events:none;}
+  .picker::after{content:"\25BE";position:absolute;right:12px;color:var(--az);pointer-events:none;font-size:.72rem;}
+  select{
+    appearance:none;font-family:inherit;font-size:.76rem;font-weight:600;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--text);
+    background:transparent;border:0;padding:3px 0;margin:0;cursor:pointer;max-width:58vw;
+  }
+  select:focus-visible{outline:none;}
+  select option{background:var(--surface-2);color:var(--text);text-transform:none;letter-spacing:0;}
+  .hint{color:var(--az);opacity:.85;font-weight:500;}
+
+  /* ---- relationship strip ---- */
+  .relate{
+    background:var(--bg2);border:1px solid var(--line-soft);border-radius:14px;
+    padding:16px clamp(16px,2.4vw,22px);display:flex;flex-wrap:wrap;
+    gap:8px 14px;align-items:center;
+  }
+  .relate .lbl{font-size:.7rem;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-right:4px;}
+  .delta{font-family:"JetBrains Mono",monospace;font-size:.82rem;color:var(--muted);}
+  .delta b{color:var(--text);font-weight:500;}
+
+  footer{margin-top:22px;color:var(--faint);font-size:.78rem;line-height:1.6;letter-spacing:.01em;}
+  footer code{font-family:"JetBrains Mono",monospace;color:var(--muted);font-size:.92em;}
+
+  @media (prefers-reduced-motion: reduce){
+    .readout .sep{animation:none;opacity:.45;}
+    .rail__fill{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="eyebrow">Reference Clock</div>
+      <h1>UTC<span class="dot">.</span> synced to your machine</h1>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Time format">
+        <button id="fmt24" aria-pressed="true">24h</button>
+        <button id="fmt12" aria-pressed="false">12h</button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab-btn" id="tab-btn-clock" role="tab" aria-selected="true">Clock</button>
+    <button class="tab-btn" id="tab-btn-convert" role="tab" aria-selected="false">UTC Convert</button>
+  </nav>
+
+  <div class="tab" id="tab-clock" role="tabpanel">
+
+  <!-- UTC: the reference -->
+  <section class="reference" aria-label="Coordinated Universal Time">
+    <div class="ref-row">
+      <div class="zone-tag">
+        <span class="pip"></span>
+        <div>
+          <div class="zone-name">UTC</div>
+          <div class="zone-sub">Coordinated Universal Time · the zero point</div>
+        </div>
+      </div>
+      <div class="daynight" id="utc-dn"><span class="orb"></span><span class="t"></span></div>
+    </div>
+    <div class="readout" id="utc-time">--<span class="sep">:</span>--<span class="sep">:</span>--</div>
+    <div class="ref-meta">
+      <span class="datestr" id="utc-date">—</span>
+      <span class="chip lead" id="utc-off">UTC±00:00</span>
+    </div>
+    <div class="rail"><div class="rail__fill" id="rail"></div></div>
+  </section>
+
+  <div class="grid">
+    <!-- Eastern -->
+    <section class="card et" aria-label="Eastern Time">
+      <div class="card-head">
+        <div class="zone-tag">
+          <span class="pip"></span>
+          <div>
+            <div class="zone-name">Eastern</div>
+            <div class="zone-sub">America/New_York</div>
+          </div>
+        </div>
+        <div class="daynight" id="et-dn"><span class="orb"></span><span class="t"></span></div>
+      </div>
+      <div class="readout" id="et-time">--<span class="sep">:</span>--<span class="sep">:</span>--</div>
+      <div class="card-foot">
+        <span class="datestr" id="et-date">—</span>
+        <span class="chip lead" id="et-abbr">—</span>
+        <span class="chip" id="et-off">—</span>
+      </div>
+    </section>
+
+    <!-- Selectable, default Arizona -->
+    <section class="card az" aria-label="Selected time zone">
+      <div class="card-head">
+        <div class="zone-tag">
+          <span class="pip"></span>
+          <div>
+            <div class="picker">
+              <span class="swap" aria-hidden="true">&#8644;</span>
+              <select id="zsel" aria-label="Choose a U.S. time zone"></select>
+            </div>
+            <div class="zone-sub"><span id="az-id">America/Phoenix</span> <span class="hint">&middot; tap to change</span></div>
+          </div>
+        </div>
+        <div class="daynight" id="az-dn"><span class="orb"></span><span class="t"></span></div>
+      </div>
+      <div class="readout" id="az-time">--<span class="sep">:</span>--<span class="sep">:</span>--</div>
+      <div class="card-foot">
+        <span class="datestr" id="az-date">—</span>
+        <span class="chip lead" id="az-abbr">—</span>
+        <span class="chip" id="az-off">—</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- live offset relationships -->
+  <div class="relate" aria-label="Offset relationships">
+    <span class="lbl">Offsets</span>
+    <span class="delta" id="rel-et">—</span>
+    <span class="delta" id="rel-az">—</span>
+    <span class="delta" id="rel-azet">—</span>
+  </div>
+
+  </div><!-- /tab-clock -->
+
+  <div class="tab" id="tab-convert" role="tabpanel" hidden>
+
+    <div class="cv-bar">
+      <div>
+        <div class="zone-name">Convert</div>
+        <div class="zone-sub">Edit any field — the other two follow</div>
+      </div>
+      <button class="now-btn" id="cv-now" type="button" aria-label="Fill current time">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle><path d="M12 7.5V12l3 1.8"></path>
+        </svg>
+        <span class="now-txt">Now <b id="cv-now-time">--:--:--</b> UTC</span>
+      </button>
+    </div>
+    <div class="cv-msg" id="cv-msg">Instant <code>—</code></div>
+
+    <div class="grid grid3">
+      <!-- UTC -->
+      <section class="card utc" aria-label="UTC">
+        <div class="card-head">
+          <div class="zone-tag">
+            <span class="pip"></span>
+            <div>
+              <div class="zone-name">UTC</div>
+              <div class="zone-sub">ISO 8601 / CloudWatch</div>
+            </div>
+          </div>
+          <div class="daynight" id="cv-utc-dn"><span class="orb"></span><span class="t"></span></div>
+        </div>
+        <input type="text" id="cv-utc-field" class="cv-field utc" autocomplete="off" spellcheck="false"
+               placeholder="2026-06-22T14:23:05.123Z" aria-label="UTC timestamp">
+        <div class="card-foot">
+          <span class="datestr" id="cv-utc-wd">—</span>
+          <span class="chip lead" id="cv-utc-off">UTC±00:00</span>
+        </div>
+      </section>
+
+      <!-- Eastern -->
+      <section class="card et" aria-label="Eastern">
+        <div class="card-head">
+          <div class="zone-tag">
+            <span class="pip"></span>
+            <div>
+              <div class="zone-name">Eastern</div>
+              <div class="zone-sub">America/New_York</div>
+            </div>
+          </div>
+          <div class="daynight" id="cv-et-dn"><span class="orb"></span><span class="t"></span></div>
+        </div>
+        <input type="text" id="cv-et-field" class="cv-field et" autocomplete="off" spellcheck="false"
+               placeholder="2026-06-22 14:23:05" aria-label="Eastern local time">
+        <div class="card-foot">
+          <span class="datestr" id="cv-et-wd">—</span>
+          <span class="chip lead" id="cv-et-abbr">—</span>
+          <span class="chip" id="cv-et-off">—</span>
+        </div>
+      </section>
+
+      <!-- selectable 3rd zone -->
+      <section class="card az" aria-label="Selected zone">
+        <div class="card-head">
+          <div class="zone-tag">
+            <span class="pip"></span>
+            <div>
+              <div class="picker">
+                <span class="swap" aria-hidden="true">&#8644;</span>
+                <select id="zsel2" aria-label="Choose a U.S. time zone"></select>
+              </div>
+              <div class="zone-sub"><span id="cv-az-id">America/Phoenix</span> <span class="hint">&middot; tap to change</span></div>
+            </div>
+          </div>
+          <div class="daynight" id="cv-az-dn"><span class="orb"></span><span class="t"></span></div>
+        </div>
+        <input type="text" id="cv-az-field" class="cv-field az" autocomplete="off" spellcheck="false"
+               placeholder="2026-06-22 07:23:05" aria-label="Selected zone local time">
+        <div class="card-foot">
+          <span class="datestr" id="cv-az-wd">—</span>
+          <span class="chip lead" id="cv-az-abbr">—</span>
+          <span class="chip" id="cv-az-off">—</span>
+        </div>
+      </section>
+    </div>
+
+  </div><!-- /tab-convert -->
+
+  <footer>
+    Time is read from this device's clock (kept accurate by NTP on virtually all modern machines) and formatted into each zone with the IANA database, so daylight saving is handled automatically — Eastern shifts between <code>EDT</code> and <code>EST</code>, while Arizona stays on <code>MST</code> all year.
+    The third card is yours to change; it defaults to Arizona.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var ET_ZONE = "America/New_York";
+  var DEFAULT_ZONE = "America/Phoenix";
+  var hour12 = false;
+
+  // ---- timezone picker ----
+  var sel = document.getElementById("zsel");
+  var sel2 = document.getElementById("zsel2");
+  // U.S. time zones, ordered east → west. Labels surface the common name + DST quirks.
+  var US_ZONES = [
+    { z:"America/New_York",    label:"Eastern \u2014 New York" },
+    { z:"America/Chicago",     label:"Central \u2014 Chicago" },
+    { z:"America/Denver",      label:"Mountain \u2014 Denver" },
+    { z:"America/Phoenix",     label:"Arizona \u2014 Phoenix (no DST)" },
+    { z:"America/Los_Angeles", label:"Pacific \u2014 Los Angeles" },
+    { z:"America/Anchorage",   label:"Alaska \u2014 Anchorage" },
+    { z:"America/Adak",        label:"Hawaii\u2013Aleutian \u2014 Adak (DST)" },
+    { z:"Pacific/Honolulu",    label:"Hawaii \u2014 Honolulu (no DST)" },
+    { z:"America/Puerto_Rico", label:"Atlantic \u2014 Puerto Rico (no DST)" },
+    { z:"Pacific/Guam",        label:"Chamorro \u2014 Guam" },
+    { z:"Pacific/Pago_Pago",   label:"Samoa \u2014 Pago Pago" }
+  ];
+  function fillSelect(el){
+    US_ZONES.forEach(function(item){
+      var o = document.createElement("option");
+      o.value = item.z;
+      o.textContent = item.label;
+      el.appendChild(o);
+    });
+    el.value = DEFAULT_ZONE;
+  }
+  fillSelect(sel);
+  fillSelect(sel2);
+
+  var azZone = DEFAULT_ZONE;
+  function setAzZone(z){
+    azZone = z;
+    if(sel.value !== z) sel.value = z;
+    if(sel2.value !== z) sel2.value = z;
+    document.getElementById("az-id").textContent = z;
+    document.getElementById("cv-az-id").textContent = z;
+    render(new Date());
+    if(typeof renderConvert === "function") renderConvert();
+  }
+  sel.addEventListener("change", function(){ setAzZone(sel.value); });
+  sel2.addEventListener("change", function(){ setAzZone(sel2.value); });
+
+  // ---- tabs ----
+  var tabBtnClock = document.getElementById("tab-btn-clock");
+  var tabBtnConvert = document.getElementById("tab-btn-convert");
+  var tabClock = document.getElementById("tab-clock");
+  var tabConvert = document.getElementById("tab-convert");
+  function showTab(which){
+    var conv = which === "convert";
+    tabConvert.hidden = !conv;
+    tabClock.hidden = conv;
+    tabBtnConvert.setAttribute("aria-selected", conv ? "true":"false");
+    tabBtnClock.setAttribute("aria-selected", conv ? "false":"true");
+    if(conv) renderConvert();
+  }
+  tabBtnClock.addEventListener("click", function(){ showTab("clock"); });
+  tabBtnConvert.addEventListener("click", function(){ showTab("convert"); });
+
+  // ---- format toggle ----
+  var b24 = document.getElementById("fmt24"), b12 = document.getElementById("fmt12");
+  b24.addEventListener("click", function(){ setFmt(false); });
+  b12.addEventListener("click", function(){ setFmt(true); });
+  function setFmt(is12){
+    hour12 = is12;
+    b12.setAttribute("aria-pressed", is12 ? "true":"false");
+    b24.setAttribute("aria-pressed", is12 ? "false":"true");
+    render(new Date());
+  }
+
+  // ---- helpers ----
+  function partsFor(date, zone){
+    var dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone, hour12:false,
+      year:"numeric", month:"2-digit", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit"
+    });
+    var o = {};
+    dtf.formatToParts(date).forEach(function(p){ o[p.type] = p.value; });
+    o.hour = (parseInt(o.hour,10) % 24);
+    return o;
+  }
+
+  function offsetMinutes(date, zone){
+    var p = partsFor(date, zone);
+    var asUTC = Date.UTC(+p.year, p.month-1, +p.day, p.hour, +p.minute, +p.second);
+    return Math.round((asUTC - date.getTime())/60000);
+  }
+
+  function fmtOffset(min){
+    var sign = min < 0 ? "−" : "+";
+    var a = Math.abs(min);
+    var h = String(Math.floor(a/60)).padStart(2,"0");
+    var m = String(a%60).padStart(2,"0");
+    return "UTC" + sign + h + ":" + m;
+  }
+
+  function tzName(date, zone, type){ // type: 'short' or 'shortOffset'
+    try{
+      var dtf = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: type });
+      var p = dtf.formatToParts(date).find(function(x){ return x.type === "timeZoneName"; });
+      return p ? p.value : "";
+    }catch(e){ return ""; }
+  }
+
+  function observesDST(zone){
+    var y = new Date().getUTCFullYear();
+    var jan = offsetMinutes(new Date(Date.UTC(y,0,1)), zone);
+    var jul = offsetMinutes(new Date(Date.UTC(y,6,1)), zone);
+    return jan !== jul;
+  }
+
+  function buildTimeHTML(p){
+    var h = p.hour, suffix = "";
+    if(hour12){
+      suffix = h >= 12 ? "PM" : "AM";
+      h = h % 12; if(h === 0) h = 12;
+    }
+    var hh = String(h).padStart(2,"0");
+    var html = hh + '<span class="sep">:</span>' + p.minute + '<span class="sep">:</span>' + p.second;
+    if(hour12) html += '<span class="ampm">' + suffix + '</span>';
+    return html;
+  }
+
+  function dateStr(date, zone){
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: zone, weekday:"short", month:"short", day:"numeric", year:"numeric"
+    }).format(date);
+  }
+
+  function setDayNight(elId, hour){
+    var el = document.getElementById(elId);
+    var orb = el.querySelector(".orb");
+    var t = el.querySelector(".t");
+    var isDay = hour >= 6 && hour < 19;
+    orb.className = "orb " + (isDay ? "day" : "night");
+    t.textContent = isDay ? "daytime" : "night";
+  }
+
+  function relAbbrev(min){
+    var sign = min < 0 ? "−" : "+";
+    var a = Math.abs(min), h = Math.floor(a/60), m = a%60;
+    return sign + h + (m ? ":"+String(m).padStart(2,"0") : "") + "h";
+  }
+  function diffText(aMin, bMin, aLbl, bLbl){
+    var d = aMin - bMin; // how far a is from b
+    if(d === 0) return "<b>"+aLbl+"</b> = <b>"+bLbl+"</b>";
+    var ahead = d > 0;
+    var a = Math.abs(d), h = Math.floor(a/60), m = a%60;
+    var amt = h + (m ? ":"+String(m).padStart(2,"0") : "") + "h";
+    return "<b>"+aLbl+"</b> is " + amt + (ahead ? " ahead of " : " behind ") + "<b>"+bLbl+"</b>";
+  }
+
+  // ---- render ----
+  var rail = document.getElementById("rail");
+  var prefersReduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var lastSec = -1;
+
+  function render(date){
+    // UTC
+    var pu = partsFor(date, "UTC");
+    document.getElementById("utc-time").innerHTML = buildTimeHTML(pu);
+    document.getElementById("utc-date").textContent = dateStr(date, "UTC");
+    document.getElementById("utc-off").textContent = "UTC±00:00";
+    setDayNight("utc-dn", pu.hour);
+
+    // Eastern
+    var pe = partsFor(date, ET_ZONE);
+    var eMin = offsetMinutes(date, ET_ZONE);
+    document.getElementById("et-time").innerHTML = buildTimeHTML(pe);
+    document.getElementById("et-date").textContent = dateStr(date, ET_ZONE);
+    document.getElementById("et-abbr").textContent = tzName(date, ET_ZONE, "short");
+    document.getElementById("et-off").textContent = fmtOffset(eMin);
+    setDayNight("et-dn", pe.hour);
+
+    // Selected (default Arizona)
+    var pz = partsFor(date, azZone);
+    var zMin = offsetMinutes(date, azZone);
+    document.getElementById("az-time").innerHTML = buildTimeHTML(pz);
+    document.getElementById("az-date").textContent = dateStr(date, azZone);
+    var zAbbr = tzName(date, azZone, "short");
+    document.getElementById("az-abbr").textContent = zAbbr + (observesDST(azZone) ? "" : " · no DST");
+    document.getElementById("az-off").textContent = fmtOffset(zMin);
+    setDayNight("az-dn", pz.hour);
+
+    // relationships
+    var etLbl = tzName(date, ET_ZONE, "short") || "ET";
+    var zLbl = zAbbr || "Local";
+    document.getElementById("rel-et").innerHTML  = "ET " + relAbbrev(eMin) + "  ·  " + diffText(eMin, 0, etLbl, "UTC");
+    document.getElementById("rel-az").innerHTML  = zLbl + " " + relAbbrev(zMin) + "  ·  " + diffText(zMin, 0, zLbl, "UTC");
+    document.getElementById("rel-azet").innerHTML = diffText(zMin, eMin, zLbl, etLbl);
+  }
+
+  // ---- converter (edit any field, others follow) ----
+  var cvNow = document.getElementById("cv-now");
+  var cvMsg = document.getElementById("cv-msg");
+  var cvInstant = new Date();
+
+  function pad2(n){ return String(n).padStart(2,"0"); }
+
+  // Parse an ISO 8601 / CloudWatch timestamp, e.g. 2026-06-22T14:23:05.123Z.
+  function parseTs(raw){
+    if(raw == null) return null;
+    var v = String(raw).trim().replace(/^["']+|["']+$/g, "").trim();
+    if(!v) return null;
+    v = v.replace(" ", "T");
+    var hasZone = /[zZ]$/.test(v) || /[+\-]\d{2}:?\d{2}$/.test(v);
+    if(!hasZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)){ v += "Z"; }
+    var d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Parse a plain wall-clock string "YYYY-MM-DD HH:mm[:ss]" (T or space).
+  function parseWall(raw){
+    if(raw == null) return null;
+    var v = String(raw).trim().replace(/^["']+|["']+$/g, "").trim().replace("T", " ");
+    var m = v.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if(!m) return null;
+    return { y:+m[1], mo:+m[2], d:+m[3], h:+m[4], mi:+m[5], s:+(m[6]||0) };
+  }
+
+  // Given wall-clock components in `zone`, return the absolute instant (Date).
+  function zonedWallToInstant(w, zone){
+    var guess = Date.UTC(w.y, w.mo-1, w.d, w.h, w.mi, w.s);
+    var off1 = offsetMinutes(new Date(guess), zone);
+    var instant = guess - off1*60000;
+    var off2 = offsetMinutes(new Date(instant), zone); // re-check across DST edges
+    if(off2 !== off1){ instant = guess - off2*60000; }
+    return new Date(instant);
+  }
+
+  // One descriptor per editable card.
+  var FIELDS = [
+    { key:"utc", id:"cv-utc-field", prefix:"cv-utc", zone:function(){ return "UTC"; } },
+    { key:"et",  id:"cv-et-field",  prefix:"cv-et",  zone:function(){ return ET_ZONE; } },
+    { key:"zone",id:"cv-az-field",  prefix:"cv-az",  zone:function(){ return azZone; } }
+  ];
+
+  function fmtField(f, date){
+    if(f.key === "utc"){ return date.toISOString(); }
+    var p = partsFor(date, f.zone());
+    return p.year+"-"+p.month+"-"+p.day+" "+pad2(p.hour)+":"+p.minute+":"+p.second;
+  }
+  function parseField(f){
+    var el = document.getElementById(f.id);
+    if(f.key === "utc"){ return parseTs(el.value); }
+    var w = parseWall(el.value);
+    return w ? zonedWallToInstant(w, f.zone()) : null;
+  }
+  function fillChips(prefix, date, zone){
+    var wd = document.getElementById(prefix+"-wd");
+    if(wd){ wd.textContent = new Intl.DateTimeFormat("en-US",{ timeZone:zone, weekday:"long" }).format(date); }
+    var off = document.getElementById(prefix+"-off");
+    if(off){ off.textContent = (zone === "UTC") ? "UTC±00:00" : fmtOffset(offsetMinutes(date, zone)); }
+    var ab = document.getElementById(prefix+"-abbr");
+    if(ab){ ab.textContent = tzName(date, zone, "short") + (observesDST(zone) ? "" : " · no DST"); }
+    setDayNight(prefix+"-dn", partsFor(date, zone).hour);
+  }
+
+  // Push an instant to every card; skip the text field the user is editing.
+  function applyInstant(date, exceptKey){
+    cvInstant = date;
+    FIELDS.forEach(function(f){
+      if(f.key !== exceptKey){ document.getElementById(f.id).value = fmtField(f, date); }
+      fillChips(f.prefix, date, f.zone());
+    });
+    cvMsg.classList.remove("err");
+    cvMsg.innerHTML = "Instant <code>" + date.toISOString() + "</code>";
+  }
+  // Re-render from the last good instant (used on tab open / zone change).
+  function renderConvert(){ applyInstant(cvInstant, null); }
+
+  FIELDS.forEach(function(f){
+    var el = document.getElementById(f.id);
+    el.addEventListener("input", function(){
+      var d = parseField(f);
+      if(!d){
+        if(el.value.trim()){
+          el.classList.add("invalid");
+          cvMsg.classList.add("err");
+          cvMsg.innerHTML = "Couldn't read that field — check the format";
+          return; // keep the other fields untouched
+        }
+        d = new Date(); // empty → now
+      }
+      el.classList.remove("invalid");
+      applyInstant(d, f.key);
+    });
+  });
+
+  cvNow.addEventListener("click", function(){
+    FIELDS.forEach(function(f){ document.getElementById(f.id).classList.remove("invalid"); });
+    applyInstant(new Date(), null);
+  });
+
+  // init convert tab
+  applyInstant(new Date(), null);
+
+  function loop(){
+    var now = new Date();
+    var sec = Math.floor(now.getTime()/1000);
+    if(sec !== lastSec){
+      render(now);
+      var nu = partsFor(now, "UTC");
+      document.getElementById("cv-now-time").textContent = pad2(nu.hour)+":"+nu.minute+":"+nu.second;
+      lastSec = sec;
+    }
+    var frac = (now.getTime() % 60000) / 60000;
+    rail.style.width = (frac * 100).toFixed(prefersReduce ? 0 : 2) + "%";
+    requestAnimationFrame(loop);
+  }
+
+  render(new Date());
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
